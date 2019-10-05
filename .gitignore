@@ -1,0 +1,7 @@
+.tags
+.idea/
+.metals/
+.bloop/
+project/target
+target/
+native-libs
