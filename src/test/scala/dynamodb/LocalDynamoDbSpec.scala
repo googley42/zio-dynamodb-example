@@ -22,7 +22,7 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
 
   "zio" should {
 
-    "stream dynamodb table" in {
+    "stream dynamoDb table" in {
 
       val dynamodb: DynamoDbAsyncClient = DbHelper.createClient
 
@@ -60,7 +60,7 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
   def streamWithJavaInterop(client: DynamoDbAsyncClient): ZStream[Console, Throwable, Row] = {
     val lekStart = QueryResponse.builder().build().lastEvaluatedKey()
     val stream: ZStream[Console, Throwable, QueryResponse] = Stream.unfoldM(lekStart) { lek =>
-      val task: Task[QueryResponse] =
+      val task: Task[QueryResponse] = // constant memory space processing here
         ZIO.fromCompletionStage(UIO.effectTotal(DbHelper.findAllByIdInTheLastYear(client, limit = 3, "id", lek)))
       task
         .map { qr =>
@@ -80,7 +80,7 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
     val lekStart = QueryResponse.builder().build().lastEvaluatedKey()
     val stream: Stream[Throwable, QueryResponse] = Stream.unfoldM(lekStart) { lek =>
       Task
-        .effectAsync[QueryResponse] { cb =>
+        .effectAsync[QueryResponse] { cb => // constant memory space processing here
           DbHelper
             .findAllByIdInTheLastYear(client, limit = 3, "id", lek)
             .handle[Unit]((result, err) => {
