@@ -7,9 +7,10 @@ import java.util.concurrent.CompletableFuture
 import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
-import software.amazon.awssdk.services.dynamodb.model.{AttributeDefinition, AttributeValue, CreateTableRequest, KeySchemaElement, KeyType, LocalSecondaryIndex, Projection, ProjectionType, ProvisionedThroughput, PutItemRequest, QueryRequest, QueryResponse, ScalarAttributeType, Select}
+import software.amazon.awssdk.services.dynamodb.model._
 
 import scala.collection.JavaConverters._
+import scala.language.implicitConversions
 
 case class ScalaPutItemRequest(tableName: String, private var map: Map[String, AttributeValue] = Map.empty) {
   def col(t: (String, String)): ScalaPutItemRequest = this.copy(map = this.map + (t._1 -> attrValue(t._2)))
@@ -102,7 +103,7 @@ object DbHelper {
     dynamoDbClient: DynamoDbAsyncClient,
     limit: Int,
     id: String,
-    lastEvaluatedKey: Option[Row] = None //TODO: does this need to be optional anymore?
+    lastEvaluatedKey: Row
   ): CompletableFuture[QueryResponse] = {
     val qr = QueryRequest
       .builder()
@@ -119,7 +120,7 @@ object DbHelper {
       .limit(limit)
 
     dynamoDbClient.query(
-      lastEvaluatedKey.fold(qr)(lek => qr.exclusiveStartKey(lek)).build
+      qr.exclusiveStartKey(lastEvaluatedKey).build
     )
   }
 

@@ -46,6 +46,7 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
         _ <- zioPutItems
         processedCount <- streamWithJavaInterop(dynamodb)
           .run(ZSink.foldLeftM(0) { (s: Int, a: Row) =>
+            // constant memory space processing here
             console.putStrLn("Sink >>> " + a.get("orderDate")) *> UIO.effectTotal(s + 1)
           })
       } yield processedCount
@@ -60,7 +61,7 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
     val lekStart = QueryResponse.builder().build().lastEvaluatedKey()
     val stream: ZStream[Console, Throwable, QueryResponse] = Stream.unfoldM(lekStart) { lek =>
       val task: Task[QueryResponse] =
-        ZIO.fromCompletionStage(UIO.effectTotal(DbHelper.findAllByIdInTheLastYear(client, limit = 3, "id", Some(lek))))
+        ZIO.fromCompletionStage(UIO.effectTotal(DbHelper.findAllByIdInTheLastYear(client, limit = 3, "id", lek)))
       task
         .map { qr =>
           Some((qr, qr.lastEvaluatedKey()))
@@ -81,7 +82,7 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
       Task
         .effectAsync[QueryResponse] { cb =>
           DbHelper
-            .findAllByIdInTheLastYear(client, limit = 3, "id", Some(lek))
+            .findAllByIdInTheLastYear(client, limit = 3, "id", lek)
             .handle[Unit]((result, err) => {
               err match {
                 case null =>
