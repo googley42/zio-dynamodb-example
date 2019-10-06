@@ -6,6 +6,7 @@ import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model.{PutItemRequest, QueryResponse}
 import zio._
+import zio.console.Console
 import zio.interop.javaz._
 import zio.stream._
 
@@ -25,8 +26,8 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
 
       val dynamodb: DynamoDbAsyncClient = DbHelper.createClient
 
-      val cf = dynamodb.createTable(DbHelper.createTableRequest)
-      val zioCreateTable = ZIO.fromCompletionStage(UIO.effectTotal(cf))
+      val completableFuture = dynamodb.createTable(DbHelper.createTableRequest)
+      val zioCreateTable = ZIO.fromCompletionStage(UIO.effectTotal(completableFuture))
 
       val zioPutItems = ZIO.foreach(1 to 5) { i =>
         val item: PutItemRequest = ScalaPutItemRequest(tableName = "Entitlement")
@@ -40,13 +41,12 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
         ZIO.fromCompletionStage(UIO.effectTotal(dynamodb.putItem(item)))
       }
 
-      val program: ZIO[Any, Throwable, Int] = for {
+      val program: ZIO[Console, Throwable, Int] = for {
         _ <- zioCreateTable
         _ <- zioPutItems
         processedCount <- streamWithJavaInterop(dynamodb)
-          .run(ZSink.foldLeft(0) { (s: Int, a: Row) =>
-            println("XXXXXXXXXXXXXXX " + a.get("orderDate"))
-            s + 1 //TODO: putStrLn
+          .run(ZSink.foldLeftM(0) { (s: Int, a: Row) =>
+            console.putStrLn("Sink >>> " + a.get("orderDate")) *> UIO.effectTotal(s + 1)
           })
       } yield processedCount
 
@@ -56,13 +56,32 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
     }
   }
 
-  def streamWithManualTaskEffectAsync(client: DynamoDbAsyncClient): ZStream[Any, Throwable, Row] = {
+  def streamWithJavaInterop(client: DynamoDbAsyncClient): ZStream[Console, Throwable, Row] = {
+    val lekStart = QueryResponse.builder().build().lastEvaluatedKey()
+    val stream: ZStream[Console, Throwable, QueryResponse] = Stream.unfoldM(lekStart) { lek =>
+      val task: Task[QueryResponse] =
+        ZIO.fromCompletionStage(UIO.effectTotal(DbHelper.findAllByIdInTheLastYear(client, limit = 3, "id", Some(lek))))
+      task
+        .map { qr =>
+          Some((qr, qr.lastEvaluatedKey()))
+        }
+    }
+    stream
+      .tap(_ => console.putStrLn("Stream >>> fetched a batch ot items"))
+      .takeUntil { qr =>
+        qr.items.size == 0 || qr.lastEvaluatedKey.size == 0
+      }
+      .flatMap(qr => Stream.fromIterable(qr.items.asScala))
+  }
+
+  // we can manually lift CompletionStage to a Task as well
+  def streamWithManualJavaInterop(client: DynamoDbAsyncClient): ZStream[Console, Throwable, Row] = {
     val lekStart = QueryResponse.builder().build().lastEvaluatedKey()
     val stream: Stream[Throwable, QueryResponse] = Stream.unfoldM(lekStart) { lek =>
       Task
         .effectAsync[QueryResponse] { cb =>
           DbHelper
-            .findAllByIdInTheLastYear(client, "id", Some(lek))
+            .findAllByIdInTheLastYear(client, limit = 3, "id", Some(lek))
             .handle[Unit]((result, err) => {
               err match {
                 case null =>
@@ -74,29 +93,11 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
           ()
         }
         .map { qr =>
-          println("XXXXXXXXXXXXXXXXXXX about to fetch a batch ot items")
           Some((qr, qr.lastEvaluatedKey()))
         }
     }
     stream
-      .takeUntil { qr =>
-        qr.items.size == 0 || qr.lastEvaluatedKey.size == 0
-      }
-      .flatMap(qr => Stream.fromIterable(qr.items.asScala))
-  }
-
-  def streamWithJavaInterop(client: DynamoDbAsyncClient): Stream[Throwable, Row] = {
-    val lekStart = QueryResponse.builder().build().lastEvaluatedKey()
-    val stream: Stream[Throwable, QueryResponse] = Stream.unfoldM(lekStart) { lek =>
-      val task: Task[QueryResponse] =
-        ZIO.fromCompletionStage(UIO.effectTotal(DbHelper.findAllByIdInTheLastYear(client, "id", Some(lek))))
-      task
-        .map { qr =>
-          println("XXXXXXXXXXXXXXXXXXX about to fetch a batch ot items")
-          Some((qr, qr.lastEvaluatedKey()))
-        }
-    }
-    stream
+      .tap(_ => console.putStrLn("Stream >>> fetched a batch ot items"))
       .takeUntil { qr =>
         qr.items.size == 0 || qr.lastEvaluatedKey.size == 0
       }

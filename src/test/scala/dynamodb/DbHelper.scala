@@ -100,8 +100,9 @@ object DbHelper {
 
   def findAllByIdInTheLastYear(
     dynamoDbClient: DynamoDbAsyncClient,
+    limit: Int,
     id: String,
-    lastEvaluatedKey: Option[Row] = None
+    lastEvaluatedKey: Option[Row] = None //TODO: does this need to be optional anymore?
   ): CompletableFuture[QueryResponse] = {
     val qr = QueryRequest
       .builder()
@@ -115,7 +116,7 @@ object DbHelper {
           ":orderDate" -> AttributeValue.builder().s(DateCutOff).build()
         ).asJava
       )
-      .limit(3)
+      .limit(limit)
 
     dynamoDbClient.query(
       lastEvaluatedKey.fold(qr)(lek => qr.exclusiveStartKey(lek)).build
