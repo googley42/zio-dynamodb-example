@@ -4,15 +4,14 @@ import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
 import dynamodb.DbHelper.Row
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
-import software.amazon.awssdk.services.dynamodb.model.{PutItemRequest, QueryResponse}
+import software.amazon.awssdk.services.dynamodb.model.{PutItemRequest, PutItemResponse, QueryResponse}
 import zio._
 import zio.console.Console
-import zio.interop.javaz._
 import zio.stream._
 
 import scala.collection.JavaConverters._
 
-class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll with DefaultRuntime {
+class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll {
   private lazy val server: DynamoDBProxyServer = DbHelper.createServer
 
   override def beforeAll(): Unit =
@@ -27,9 +26,9 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
       val dynamodb: DynamoDbAsyncClient = DbHelper.createClient
 
       val completableFuture = dynamodb.createTable(DbHelper.createTableRequest)
-      val zioCreateTable = ZIO.fromCompletionStage(UIO.effectTotal(completableFuture))
+      val zioCreateTable = ZIO.fromCompletionStage(completableFuture)
 
-      val zioPutItems = ZIO.foreach(1 to 5) { i =>
+      val zioPutItems: ZIO[Any, Throwable, List[PutItemResponse]] = ZIO.foreach(1 to 5) { i =>
         val item: PutItemRequest = ScalaPutItemRequest(tableName = "Entitlement")
           .cols(
             "id" -> "id",
@@ -38,7 +37,7 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
             "accountId" -> s"1234abcd"
           )
           .item
-        ZIO.fromCompletionStage(UIO.effectTotal(dynamodb.putItem(item)))
+        ZIO.fromCompletionStage(dynamodb.putItem(item))
       }
 
       val program: ZIO[Console, Throwable, Int] = for {
@@ -51,17 +50,18 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
           })
       } yield processedCount
 
-      val processedCount = unsafeRun(program)
+      val processedCount = Runtime.default.unsafeRun(program)
 
       processedCount shouldBe 5
     }
   }
 
+  // Lifts CompletionStage to a ZIO Task using the ZIO java future interop module
   def streamWithJavaInterop(client: DynamoDbAsyncClient): ZStream[Console, Throwable, Row] = {
     val lekStart = QueryResponse.builder().build().lastEvaluatedKey()
     val stream: ZStream[Console, Throwable, QueryResponse] = Stream.unfoldM(lekStart) { lek =>
       val task: Task[QueryResponse] = // constant memory space processing here
-        ZIO.fromCompletionStage(UIO.effectTotal(DbHelper.findAllByIdInTheLastYear(client, limit = 3, "id", lek)))
+        ZIO.fromCompletionStage(DbHelper.findAllByIdInTheLastYear(client, limit = 3, "id", lek))
       task
         .map { qr =>
           Some((qr, qr.lastEvaluatedKey()))
@@ -75,7 +75,7 @@ class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll wi
       .flatMap(qr => Stream.fromIterable(qr.items.asScala))
   }
 
-  // we can manually lift CompletionStage to a Task as well
+  // we can manually lift CompletionStage to a ZIO Task as well
   def streamWithManualJavaInterop(client: DynamoDbAsyncClient): ZStream[Console, Throwable, Row] = {
     val lekStart = QueryResponse.builder().build().lastEvaluatedKey()
     val stream: Stream[Throwable, QueryResponse] = Stream.unfoldM(lekStart) { lek =>

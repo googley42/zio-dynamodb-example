@@ -43,8 +43,7 @@ object DbHelper {
     // Create an in-memory and in-process instance of DynamoDB Local that runs over HTTP
 
     val localArgs = Array("-inMemory")
-    var server: DynamoDBProxyServer = null
-    server = ServerRunner.createServerFromCommandLineArgs(localArgs)
+    val server: DynamoDBProxyServer = ServerRunner.createServerFromCommandLineArgs(localArgs)
     server
   }
 
