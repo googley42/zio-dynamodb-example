@@ -5,25 +5,30 @@ version := "0.1"
 scalaVersion := "2.12.8"
 
 resolvers += "DynamoDB Local Release Repository" at "https://s3-us-west-2.amazonaws.com/dynamodb-local/release"
-//TODO: try https://s3.eu-central-1.amazonaws.com/dynamodb-local-frankfurt/release
 resolvers += Resolver.sonatypeRepo("releases")
 
-val ZioVersion = "1.0.0-RC13" //"1.0.0-RC11-1, 1.0.0-RC13"
+val ZioVersion = "1.0.3"
 
-libraryDependencies += "software.amazon.awssdk" % "dynamodb" % "2.8.7"
+//libraryDependencies += "software.amazon.awssdk" % "dynamodb" % "2.8.7"
 libraryDependencies += "com.amazonaws" % "DynamoDBLocal" % "1.11.477" % Test
 
 libraryDependencies += "dev.zio" %% "zio" % ZioVersion
 libraryDependencies += "dev.zio" %% "zio-test" % ZioVersion % Test
 libraryDependencies += "dev.zio" %% "zio-streams" % ZioVersion
-libraryDependencies += "dev.zio" %% "zio-interop-java" % "1.1.0.0-RC4"
 
+val zioAwsVersion = "3.15.35.4"
+libraryDependencies += "io.github.vigoo" %% "zio-aws-core" % zioAwsVersion
+libraryDependencies += "io.github.vigoo" %% "zio-aws-kinesis" % zioAwsVersion
+libraryDependencies += "io.github.vigoo" %% "zio-aws-dynamodb" % zioAwsVersion
+libraryDependencies += "io.github.vigoo" %% "zio-aws-netty" % zioAwsVersion
+
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % "test"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % "test"
 
 // see http://softwarebyjosh.com/2018/03/25/how-to-unit-test-your-dynamodb-queries.html
 // native libs
-libraryDependencies += "com.almworks.sqlite4java" % "libsqlite4java-linux-i386" % "latest.integration" % "test"
+// libraryDependencies += "com.almworks.sqlite4java" % "libsqlite4java-linux-i386" % "latest.integration" % "test"
 libraryDependencies += "com.almworks.sqlite4java" % "libsqlite4java-linux-amd64" % "latest.integration" % "test"
 
 lazy val copyJars = taskKey[Unit]("copyJars")
