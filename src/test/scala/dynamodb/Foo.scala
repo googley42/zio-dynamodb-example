@@ -2,8 +2,10 @@ package dynamodb
 
 import java.net.URI
 
-import io.github.vigoo.zioaws.core.config.{AwsConfig, CommonAwsConfig, default}
-import io.github.vigoo.zioaws.core.{AwsError, config}
+import io.github.vigoo.zioaws.core.config.{default, AwsConfig, CommonAwsConfig}
+import io.github.vigoo.zioaws.core.config.{default, AwsConfig, CommonAwsConfig}
+import io.github.vigoo.zioaws.core.{config, AwsError}
+import io.github.vigoo.zioaws.dynamodb.model.primitives.{AttributeName, KeyExpression}
 import io.github.vigoo.zioaws.dynamodb.model._
 import io.github.vigoo.zioaws.dynamodb.{model, _}
 import io.github.vigoo.zioaws.{dynamodb, netty}
@@ -14,10 +16,11 @@ import zio.{App, ExitCode, URIO, ZIO, ZLayer}
 import scala.language.implicitConversions
 
 object Foo extends App {
+  val accessKey: String = "dummy-key"
+  val secretAccessKey: String = "dummy-key"
+  val creds = StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretAccessKey))
 
   val httpClientLayer = netty.default
-
-  val awsConfigLayer: ZLayer[Any, Throwable, AwsConfig] = httpClientLayer >>> default
 
   val commonAwsConfigLayer = ZLayer.succeed(
     CommonAwsConfig(
@@ -28,33 +31,68 @@ object Foo extends App {
     )
   )
 
-  val awsConfigLayer2: ZLayer[Any, Throwable, AwsConfig] = httpClientLayer ++ commonAwsConfigLayer >>> config
+  val awsConfigLayer: ZLayer[Any, Throwable, AwsConfig] = httpClientLayer ++ commonAwsConfigLayer >>> config
     .configured()
-
-  val ddbLayer: ZLayer[Any, Throwable, DynamoDb] = awsConfigLayer2 >>> dynamodb.live
-
+  val ddbLayer: ZLayer[Any, Throwable, DynamoDb] = awsConfigLayer >>> dynamodb.live
   val hashKeyName = "id"
+  val DateCutOff: String = "orderDate0"
 
   val createTableRequest: CreateTableRequest = CreateTableRequest(
     attributeDefinitions = Seq(
       AttributeDefinition(hashKeyName, ScalarAttributeType.S),
-      AttributeDefinition("entitlement", ScalarAttributeType.S)
-//      AttributeDefinition("orderDate", ScalarAttributeType.S)
+      AttributeDefinition("entitlement", ScalarAttributeType.S),
+      AttributeDefinition("orderDate", ScalarAttributeType.S)
     ),
     tableName = "Entitlement",
-    keySchema = Seq(model.KeySchemaElement("id", KeyType.HASH), model.KeySchemaElement("entitlement", KeyType.RANGE)),
-    provisionedThroughput = Some(ProvisionedThroughput(1000L, 1500L))
+    keySchema =
+      Seq(model.KeySchemaElement(hashKeyName, KeyType.HASH), model.KeySchemaElement("entitlement", KeyType.RANGE)),
+    localSecondaryIndexes = Some(
+      Seq(
+        LocalSecondaryIndex(
+          "idOrderDate",
+          Seq(KeySchemaElement(hashKeyName, KeyType.HASH), KeySchemaElement("orderDate", KeyType.RANGE)),
+          projection = Projection(projectionType = Some(ProjectionType.ALL))
+        )
+      )
+    ),
+    provisionedThroughput = Some(ProvisionedThroughput(5L, 5L))
   )
 
-  val program: ZIO[DynamoDb, AwsError, CreateTableResponse.ReadOnly] = for {
-    result <- createTable(createTableRequest)
-  } yield result
+  def putItemRequest(i: Int) =
+    PutItemRequest(
+      tableName = "Entitlement",
+      item = Map(
+        "id" -> AttributeValue(s = Some("id")),
+        "entitlement" -> AttributeValue(s = Some(s"entitlement$i")),
+        "orderDate" -> AttributeValue(s = Some(s"orderDate$i")),
+        "accountId" -> AttributeValue(s = Some(s"1234abcd"))
+      )
+    )
 
-  val createTableProgram: ZIO[Any, Object, CreateTableResponse.ReadOnly] = program.provideLayer(ddbLayer)
+  def findAllByIdInTheLastYear(
+    limit: Int,
+    id: String,
+    lastEvaluatedKey: Map[AttributeName, AttributeValue]
+  ): QueryRequest =
+    QueryRequest(
+      tableName = "Entitlement",
+      indexName = Some("idOrderDate"),
+      keyConditionExpression = Some("id = :id AND orderDate >= :orderDate"),
+      select = Some(Select.ALL_ATTRIBUTES),
+      expressionAttributeValues =
+        Some(Map(hashKeyName -> AttributeValue(s = Some(id)), "orderDate" -> AttributeValue(s = Some(DateCutOff)))),
+      limit = Some(limit),
+      exclusiveStartKey = Some(lastEvaluatedKey)
+    )
 
-  val accessKey: String = "dummy-key"
-  val secretAccessKey: String = "dummy-key"
-  val creds = StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretAccessKey))
+  val program = for {
+    _ <- createTable(createTableRequest)
+    putItemResults <- ZIO.foreach((1 to 5)) { i =>
+      putItem(putItemRequest(i))
+    }
+  } yield putItemResults
+
+  val createTableProgram = program.provideLayer(ddbLayer)
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideLayer(ddbLayer).exitCode
 }
