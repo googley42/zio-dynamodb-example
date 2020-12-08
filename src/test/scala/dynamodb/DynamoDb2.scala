@@ -11,7 +11,7 @@ object DynamoDb2 {
   type DynamoDb2 = Has[Service]
 
   trait Service {
-    def query(r: QueryRequest): IO[AwsError, QueryResponse.ReadOnly]
+    def query2(request: QueryRequest): IO[AwsError, QueryResponse.ReadOnly]
   }
 
   val live2 = managed2(identity).toLayer
@@ -28,6 +28,8 @@ object DynamoDb2 {
       client <- ZIO(customization(b1).build()).toManaged_
     } yield new DynamoDbImpl2(client, AwsCallAspect.identity, ().asInstanceOf[Any])
 
+  def query2(request: QueryRequest): ZIO[DynamoDb2, AwsError, QueryResponse.ReadOnly] =
+    ZIO.accessM(_.get.query2(request))
 }
 
 class DynamoDbImpl2[R](val api: DynamoDbAsyncClient, val aspect: AwsCallAspect[R], r: R)
@@ -35,7 +37,7 @@ class DynamoDbImpl2[R](val api: DynamoDbAsyncClient, val aspect: AwsCallAspect[R
     with AwsServiceBase[R, DynamoDbImpl2] {
   override val serviceName: String = "shockinglyButcheredDynamoDbService"
 
-  def query(request: QueryRequest): IO[AwsError, QueryResponse.ReadOnly] =
+  def query2(request: QueryRequest): IO[AwsError, QueryResponse.ReadOnly] =
     asyncRequestResponse[
       software.amazon.awssdk.services.dynamodb.model.QueryRequest,
       software.amazon.awssdk.services.dynamodb.model.QueryResponse
