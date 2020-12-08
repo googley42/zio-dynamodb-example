@@ -11,7 +11,7 @@ import io.github.vigoo.zioaws.{dynamodb, netty}
 import software.amazon.awssdk.auth.credentials.{AwsBasicCredentials, StaticCredentialsProvider}
 import software.amazon.awssdk.regions.Region
 import zio.stream.{Stream, ZStream}
-import zio.{stream, App, ExitCode, URIO, ZIO, ZLayer}
+import zio.{stream, App, ExitCode, UIO, URIO, ZIO, ZLayer}
 
 import scala.language.implicitConversions
 
@@ -113,7 +113,7 @@ object Foo extends App {
       exclusiveStartKey = lastEvaluatedKey
     )
 
-  def lekStart: Option[Map[AttributeName, AttributeValue]] = QueryResponse().lastEvaluatedKey
+  def lekStart = QueryResponse().lastEvaluatedKey
 
   /*
     val stream: ZStream[Console, Throwable, QueryResponse] = Stream.unfoldM(lekStart) { lek =>
@@ -133,25 +133,30 @@ object Foo extends App {
       .flatMap(qr => Stream.fromIterable(qr.items.asScala))
    */
 
-//  val s = {
-//    val stream =
-//      Stream.unfoldM(lekStart) { // [Any, Throwable, QueryResponse.ReadOnly, Option[Map[AttributeName, AttributeValue]]]
-//        lek =>
-//          val effect =
-//            DynamoDb2.query2(findAllByIdInTheLastYear(limit = 3, "id", lek)).provideLayer(ddbLayer2)
-//          val x: ZIO[Any, Object, Some[(QueryResponse.ReadOnly, ZIO[Any, AwsError, Map[AttributeName, AttributeValue.ReadOnly]])]] = effect
-//            .map { qr =>
-//              Some((qr, qr.lastEvaluatedKey))
-//            }
-//          x
-//      }
+  /*
+    Mismatch in types
+    QueryResult.ReadOnly.lek = lek.readOnly
+    QueryResult.lek = lek
+   */
+  def s() = {
+    val stream: ZStream[DynamoDb2.DynamoDb2, AwsError, QueryResponse] =
+      Stream.unfoldM(lekStart) { lek =>
+        val effect =
+          DynamoDb2.query2(findAllByIdInTheLastYear(limit = 3, "id", lek)).map(_.editable)
+        effect
+//          .provideLayer(ddbLayer2)
+          .map { qr =>
+            Some((qr, qr.lastEvaluatedKey))
+          }
+      }
+
 //    stream
-////      .tap(_ => putStrLn("Stream >>> fetched a batch ot items"))
 //      .takeUntil { qr =>
 //        qr.items.size == 0 || qr.lastEvaluatedKey.size == 0
 //      }
 //      .flatMap(qr => Stream.fromIterable(qr.items))
-//  }
+
+  }
 
   val program = for {
     _ <- createTable(createTableRequest)

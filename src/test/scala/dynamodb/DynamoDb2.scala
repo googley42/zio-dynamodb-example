@@ -4,8 +4,8 @@ import io.github.vigoo.zioaws.core.aspects.AwsCallAspect
 import io.github.vigoo.zioaws.core.config.AwsConfig
 import io.github.vigoo.zioaws.core.{AwsError, AwsServiceBase}
 import io.github.vigoo.zioaws.dynamodb.model.{QueryRequest, QueryResponse}
-import software.amazon.awssdk.services.dynamodb.{DynamoDbAsyncClient, DynamoDbAsyncClientBuilder}
-import zio.{Has, IO, ZIO, ZManaged}
+import software.amazon.awssdk.services.dynamodb.{model, DynamoDbAsyncClient, DynamoDbAsyncClientBuilder}
+import zio.{Has, IO, ZIO, ZLayer, ZManaged}
 
 object DynamoDb2 {
   type DynamoDb2 = Has[Service]
@@ -14,7 +14,7 @@ object DynamoDb2 {
     def query2(request: QueryRequest): IO[AwsError, QueryResponse.ReadOnly]
   }
 
-  val live2 = managed2(identity).toLayer
+  val live2: ZLayer[AwsConfig, Throwable, Has[Service]] = managed2(identity).toLayer
 
   def managed2(
     customization: DynamoDbAsyncClientBuilder => DynamoDbAsyncClientBuilder
@@ -42,4 +42,5 @@ class DynamoDbImpl2[R](val api: DynamoDbAsyncClient, val aspect: AwsCallAspect[R
       software.amazon.awssdk.services.dynamodb.model.QueryRequest,
       software.amazon.awssdk.services.dynamodb.model.QueryResponse
     ]("query2", api.query)(request.buildAwsValue()).map(QueryResponse.wrap).provide(r)
+
 }
