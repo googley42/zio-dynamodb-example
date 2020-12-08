@@ -2,16 +2,17 @@ package dynamodb
 
 import java.net.URI
 
-import io.github.vigoo.zioaws.core.config.{default, AwsConfig, CommonAwsConfig}
-import io.github.vigoo.zioaws.core.config.{default, AwsConfig, CommonAwsConfig}
-import io.github.vigoo.zioaws.core.{config, AwsError}
-import io.github.vigoo.zioaws.dynamodb.model.primitives.{AttributeName, KeyExpression}
+import io.github.vigoo.zioaws.core.aspects.AwsCallAspect
+import io.github.vigoo.zioaws.core.config.{AwsConfig, CommonAwsConfig}
+import io.github.vigoo.zioaws.core.{config, AwsError, AwsServiceBase}
 import io.github.vigoo.zioaws.dynamodb.model._
+import io.github.vigoo.zioaws.dynamodb.model.primitives.AttributeName
 import io.github.vigoo.zioaws.dynamodb.{model, _}
 import io.github.vigoo.zioaws.{dynamodb, netty}
 import software.amazon.awssdk.auth.credentials.{AwsBasicCredentials, StaticCredentialsProvider}
 import software.amazon.awssdk.regions.Region
-import zio.{App, ExitCode, URIO, ZIO, ZLayer}
+import software.amazon.awssdk.services.dynamodb.{DynamoDbAsyncClient, DynamoDbAsyncClientBuilder}
+import zio.{App, ExitCode, Has, IO, URIO, ZIO, ZLayer, ZManaged}
 
 import scala.language.implicitConversions
 
@@ -95,4 +96,9 @@ object Foo extends App {
   val createTableProgram = program.provideLayer(ddbLayer)
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideLayer(ddbLayer).exitCode
+
+  // can use AwsCallAspect.identity
+
+  val ddbLayer2: ZLayer[Any, Throwable, DynamoDb2.DynamoDb2] = awsConfigLayer >>> DynamoDb2.live2
+
 }
