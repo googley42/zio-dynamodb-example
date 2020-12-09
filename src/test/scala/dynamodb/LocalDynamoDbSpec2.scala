@@ -8,18 +8,17 @@ import zio._
 
 import scala.collection.immutable
 
-class LocalDynamoDbSpec extends WordSpec with Matchers with BeforeAndAfterAll {
+class LocalDynamoDbSpec2 extends WordSpec with Matchers with BeforeAndAfterAll {
   private lazy val server: DynamoDBProxyServer = DBServer.createServer
 
-  override def beforeAll(): Unit =
-    server.start()
+  override def beforeAll(): Unit = server.start()
 
   override def afterAll(): Unit = server.stop()
 
   "zio" should {
-
+//zio.stream.ZStream[DynamoDb, AwsError, Map[primitives.AttributeName, AttributeValue.ReadOnly]]
     "stream dynamoDb table" in {
-      val x = Runtime.default.unsafeRun(Foo.createTableProgram)
+      val x: Chunk[Map[AttributeName, AttributeValue]] = Runtime.default.unsafeRun(Foo.streamedQueryProgram)
       println(x)
     }
   }

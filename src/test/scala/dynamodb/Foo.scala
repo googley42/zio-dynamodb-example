@@ -11,7 +11,7 @@ import io.github.vigoo.zioaws.{dynamodb, netty}
 import software.amazon.awssdk.auth.credentials.{AwsBasicCredentials, StaticCredentialsProvider}
 import software.amazon.awssdk.regions.Region
 import zio.stream.{Stream, ZStream}
-import zio.{stream, App, ExitCode, UIO, URIO, ZIO, ZLayer}
+import zio.{stream, App, Chunk, ExitCode, UIO, URIO, ZIO, ZLayer}
 
 import scala.language.implicitConversions
 
@@ -70,33 +70,6 @@ object Foo extends App {
       )
     )
 
-  /*
-    def findAllByIdInTheLastYear(
-      dynamoDbClient: DynamoDbAsyncClient,
-      limit: Int,
-      id: String,
-      lastEvaluatedKey: Row
-    ): CompletableFuture[QueryResponse] = {
-      val qr = QueryRequest
-        .builder()
-        .select(Select.ALL_ATTRIBUTES)
-        .tableName("Entitlement")
-        .indexName("idOrderDate")
-        .keyConditionExpression("id = :id AND orderDate >= :orderDate")
-        .expressionAttributeValues(
-          Map(
-            ":id" -> AttributeValue.builder().s(id).build(),
-            ":orderDate" -> AttributeValue.builder().s(DateCutOff).build()
-          ).asJava
-        )
-        .limit(limit)
-
-      dynamoDbClient.query(
-        qr.exclusiveStartKey(lastEvaluatedKey).build
-      )
-    }
-   */
-
   def findAllByIdInTheLastYear(
     limit: Int,
     id: String,
@@ -113,50 +86,98 @@ object Foo extends App {
       exclusiveStartKey = lastEvaluatedKey
     )
 
-  def lekStart = QueryResponse().lastEvaluatedKey
+  def lekStart: Option[Map[AttributeName, AttributeValue]] = QueryResponse().lastEvaluatedKey
 
   /*
-    val stream: ZStream[Console, Throwable, QueryResponse] = Stream.unfoldM(lekStart) { lek =>
-      val task: Task[QueryResponse] = // constant memory space processing here
-        ZIO.fromCompletionStage(DbHelper.findAllByIdInTheLastYear(client, limit = 3, "id", lek))
-      task
-        .map { qr =>
-          Some((qr, qr.lastEvaluatedKey()))
-        }
-    }
-
-    stream
-      .tap(_ => console.putStrLn("Stream >>> fetched a batch ot items"))
-      .takeUntil { qr =>
-        qr.items.size == 0 || qr.lastEvaluatedKey.size == 0
-      }
-      .flatMap(qr => Stream.fromIterable(qr.items.asScala))
+exclusiveStartKey = {Some@7642} "Some(Map(orderDate -> AttributeValue(Some(orderDate2),None,None,Some(List()),Some(List()),Some(List()),Some(Map()),Some(List()),None,None), entitlement -> AttributeValue(Some(entitlement2),None,None,Some(List()),Some(List()),Some(List()),Some(Map()),Some(List()),None,None), id -> AttributeValue(Some(id),None,None,Some(List()),Some(List()),Some(List()),Some(Map()),Some(List()),None,None)))"
+ value = {Map$Map3@7724} "Map$Map3" size = 3
+  0 = {Tuple2@9510} "(orderDate,AttributeValue(Some(orderDate2),None,None,Some(List()),Some(List()),Some(List()),Some(Map()),Some(List()),None,None))"
+  1 = {Tuple2@9511} "(entitlement,AttributeValue(Some(entitlement2),None,None,Some(List()),Some(List()),Some(List()),Some(Map()),Some(List()),None,None))"
+  2 = {Tuple2@9512} "(id,AttributeValue(Some(id),None,None,Some(List()),Some(List()),Some(List()),Some(Map()),Some(List()),None,None))"
    */
+  def lekStartRow3: Option[Map[AttributeName, AttributeValue]] = Some(
+    Map(
+      "orderDate" -> AttributeValue(s = Some("orderDate2")),
+      "entitlement" -> AttributeValue(s = Some("entitlement2")),
+      "id" -> AttributeValue(s = Some("id"))
+    )
+  )
+
+  /*
+  Needed as I was getting 400 error for empty Lists and Maps in LEK map attributes
+  BEFORE
+  Some(Map(orderDate -> AttributeValue(Some(orderDate4),None,None,Some(List()),Some(List()),Some(List()),Some(Map()),Some(List()),None,None), entitlement -> AttributeValue(Some(entitlement4),None,None,Some(List()),Some(List()),Some(List()),Some(Map()),Some(List()),None,None), id -> AttributeValue(Some(id),None,None,Some(List()),Some(List()),Some(List()),Some(Map()),Some(List()),None,None)))
+  AFTER
+  Some(Map(orderDate -> AttributeValue(Some(orderDate4),None,None,None,None,None,None,None,None,None), entitlement -> AttributeValue(Some(entitlement4),None,None,None,None,None,None,None,None,None), id -> AttributeValue(Some(id),None,None,None,None,None,None,None,None,None)))
+   */
+  def normaliseLek(lek: Option[Map[AttributeName, AttributeValue]]) = {
+    def normaliseList[T](o: Option[Iterable[T]]) =
+      o.fold[Option[Iterable[T]]](None)(it => if (it.isEmpty) None else Some(it))
+    def normaliseMap[K, V](o: Option[Map[K, V]]) =
+      o.fold[Option[Map[K, V]]](None)(map => if (map.isEmpty) None else Some(map))
+
+    lek.fold[Option[Map[AttributeName, AttributeValue]]](None) { map =>
+      if (map.isEmpty)
+        None
+      else
+        Some(map.mapValues { av =>
+          AttributeValue(
+            av.s,
+            av.n,
+            av.b,
+            normaliseList(av.ss),
+            normaliseList(av.ns),
+            normaliseList(av.bs),
+            normaliseMap(av.m),
+            normaliseList(av.l),
+            av.nul,
+            av.bool
+          )
+        })
+    }
+  }
 
   /*
     Mismatch in types
     QueryResult.ReadOnly.lek = lek.readOnly
     QueryResult.lek = lek
    */
-  def s() = {
-    val stream: ZStream[DynamoDb2.DynamoDb2, AwsError, QueryResponse] =
-      Stream.unfoldM(lekStart) { lek =>
+  def streamQuery() = {
+    val emptyLek = Option.empty[Map[AttributeName, AttributeValue]]
+    val stream =
+      Stream.unfoldM(emptyLek) { lek =>
+        val lekNormalised: Option[Map[AttributeName, AttributeValue]] = normaliseLek(lek)
+        println(lek)
+        println(lekNormalised)
+        println()
+        val queryRequest = findAllByIdInTheLastYear(limit = 2, "id", lekNormalised)
         val effect =
-          DynamoDb2.query2(findAllByIdInTheLastYear(limit = 3, "id", lek)).map(_.editable)
+          DynamoDb2.query2(queryRequest).map(_.editable)
         effect
-//          .provideLayer(ddbLayer2)
+          .provideLayer(ddbLayer2)
           .map { qr =>
             Some((qr, qr.lastEvaluatedKey))
           }
       }
 
-//    stream
-//      .takeUntil { qr =>
-//        qr.items.size == 0 || qr.lastEvaluatedKey.size == 0
-//      }
-//      .flatMap(qr => Stream.fromIterable(qr.items))
+    stream
+      .takeUntil { qr =>
+        qr.items.fold(0)(_.size) == 0 || normaliseLek(qr.lastEvaluatedKey).isEmpty
+      }
+      .flatMap(
+        qr => Stream.fromIterable(qr.items.fold(Iterable.empty[Map[AttributeName, AttributeValue]])(it => it))
+      )
 
   }
+
+  val program2 = for {
+    _ <- createTable(createTableRequest)
+    _ <- ZIO.foreach((1 to 5)) { i =>
+      putItem(putItemRequest(i))
+    }
+    response <- streamQuery.runCollect
+
+  } yield response
 
   val program = for {
     _ <- createTable(createTableRequest)
@@ -168,7 +189,8 @@ object Foo extends App {
 
   } yield items
 
-  val createTableProgram = program.provideLayer(ddbLayer ++ ddbLayer2)
+  val rawQueryProgram = program.provideLayer(ddbLayer ++ ddbLayer2)
+  val streamedQueryProgram = program2.provideLayer(ddbLayer ++ ddbLayer2)
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = program.provideLayer(ddbLayer ++ ddbLayer2).exitCode
 

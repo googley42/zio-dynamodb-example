@@ -3,6 +3,7 @@ package dynamodb
 import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
 
 object DBServer {
+  // TODO: make into a service and use ZLayer or ZManaged for resource safety
 
   def createServer: DynamoDBProxyServer = {
     System.setProperty("sqlite4java.library.path", "native-libs")

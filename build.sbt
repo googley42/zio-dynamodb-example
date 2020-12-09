@@ -14,6 +14,7 @@ libraryDependencies += "com.amazonaws" % "DynamoDBLocal" % "1.11.477" % Test
 
 libraryDependencies += "dev.zio" %% "zio" % ZioVersion
 libraryDependencies += "dev.zio" %% "zio-test" % ZioVersion % Test
+libraryDependencies += "dev.zio" %% "zio-test-sbt" % ZioVersion % Test
 libraryDependencies += "dev.zio" %% "zio-streams" % ZioVersion
 
 val zioAwsVersion = "3.15.35.4"
@@ -51,3 +52,5 @@ copyJars := {
 }
 
 (compile in Compile) := (compile in Compile).dependsOn(copyJars).value
+
+testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
