@@ -26,8 +26,7 @@ object LocalDdbServer {
 
   def start: ZIO[LocalDdbServer, Nothing, Unit] = ZIO.accessM[LocalDdbServer](_.get.start)
 
-  // TODO make private
-  def createServer: DynamoDBProxyServer = {
+  private def createServer: DynamoDBProxyServer = {
     System.setProperty("sqlite4java.library.path", "native-libs")
     System.setProperty("aws.accessKeyId", "dummy-key")
     System.setProperty("aws.secretKey", "dummy-key") // This is not used
