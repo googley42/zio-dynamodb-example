@@ -1,28 +1,39 @@
 package dynamodb
 
-import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
-import zio.{test, UIO, ZIO, ZManaged}
+import dynamodb.Requests._
+import io.github.vigoo.zioaws.core.AwsError
+import io.github.vigoo.zioaws.dynamodb.model.AttributeValue
+import io.github.vigoo.zioaws.dynamodb.model.primitives.AttributeName
+import io.github.vigoo.zioaws.dynamodb.{createTable, putItem, query, DynamoDb}
 import zio.console._
+import zio.test.Assertion.equalTo
 import zio.test.{DefaultRunnableSpec, suite, _}
+import zio.{Chunk, ZIO}
 
 object StreamingQuerySpec extends DefaultRunnableSpec {
-  private lazy val server: DynamoDBProxyServer = DynamoDBLocal.createServer
 
-  val ddbLayer = DynamoDBLocal.inMemoryServer >>> DynamoDBLocal.live
+  val program: ZIO[DynamoDb, AwsError, Chunk[Map[AttributeName, AttributeValue.ReadOnly]]] = for {
+    _ <- createTable(createTableRequest)
+    _ <- ZIO.foreach_(1 to 5) { i =>
+      putItem(putItemRequest(i))
+    }
+    response <- query(findAllByIdInTheLastYear(id = "id")).runCollect
+
+  } yield response
 
   override def spec =
     suite(label = "StreamingQuerySpec")(
-      testM("should return the results of a raw query") {
-        for {
-//          result <- Foo.rawQueryProgram
-          _ <- putStrLn(s"1 XXXXXXXXXXXXXXXX")
-        } yield assertCompletes
-      },
       testM("should return the results of a streamed query") {
-        for {
-//          result <- Foo.streamedQueryProgram
-          _ <- putStrLn(s"2 XXXXXXXXXXXXXXXX")
-        } yield assertCompletes
+        val value = (for {
+          svr <- ZIO.service[LocalDdbServer.Service]
+          _ <- svr.start
+          items <- program
+          rowCount = items.size
+          _ <- putStrLn(s"total rows found=${items.size}")
+          _ <- putStrLn(s"${items.toList}")
+        } yield assert(rowCount)(equalTo(5)))
+          .provideCustomLayer(AwsLayers.ddbLayer ++ AwsLayers.ddbLayer2 ++ LocalDdbServer.live)
+        value
       }
-    ) @@ TestAspect2.aroundAll(DynamoDBLocal.startDynamoDb.provideLayer(ddbLayer))(_ => ZIO.unit)
+    )
 }

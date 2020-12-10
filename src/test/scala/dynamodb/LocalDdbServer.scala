@@ -1,30 +1,30 @@
 package dynamodb
 
 import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
-import zio.{Has, Task, UIO, ZIO, ZLayer}
+import zio.{Has, UIO, ZIO, ZLayer}
 
-object DynamoDBLocal {
-  type DBServer = Has[Service]
+object LocalDdbServer {
+  type LocalDdbServer = Has[Service]
 
   trait Service {
-    def start: Task[Unit]
+    def start: UIO[Unit]
   }
 
-  val inMemoryServer: ZLayer[Any, Throwable, Has[DynamoDBProxyServer]] =
-    ZLayer.fromAcquireRelease[Any, Throwable, DynamoDBProxyServer] {
-      UIO(println("Creating")) *> Task(createServer)
+  private val inMemoryServer: ZLayer[Any, Nothing, Has[DynamoDBProxyServer]] =
+    ZLayer.fromAcquireRelease[Any, Nothing, DynamoDBProxyServer] {
+      UIO(println("Creating local DynamoDb server")) *> UIO(createServer)
     } { server =>
-      UIO(println("Stopping")) *> UIO(server.stop())
+      UIO(println("Stopping local DynamoDb server")) *> UIO(server.stop())
     }
 
-  val live: ZLayer[Has[DynamoDBProxyServer], Nothing, Has[Service]] =
-    ZLayer.fromService[DynamoDBProxyServer, DynamoDBLocal.Service] { server =>
-      new DynamoDBLocal.Service {
-        override def start: Task[Unit] = Task(server.start())
+  val live: ZLayer[Any, Nothing, Has[Service]] = inMemoryServer >>> ZLayer
+    .fromService[DynamoDBProxyServer, LocalDdbServer.Service] { server =>
+      new LocalDdbServer.Service {
+        override def start: UIO[Unit] = UIO(server.start())
       }
     }
 
-  def startDynamoDb: ZIO[DBServer, Throwable, Unit] = ZIO.accessM[DBServer](_.get.start)
+  def start: ZIO[LocalDdbServer, Nothing, Unit] = ZIO.accessM[LocalDdbServer](_.get.start)
 
   // TODO make private
   def createServer: DynamoDBProxyServer = {
