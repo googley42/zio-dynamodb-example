@@ -1,5 +1,6 @@
 package dynamodb
 
+import com.amazonaws.services.dynamodbv2.local.main.ServerRunner
 import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
 import zio.{Has, UIO, ZIO, ZLayer}
 
@@ -32,8 +33,6 @@ object LocalDdbServer {
     System.setProperty("aws.secretKey", "dummy-key") // This is not used
     System.setProperty("aws.secretAccessKey", "dummy-key")
 
-    import com.amazonaws.services.dynamodbv2.local.main.ServerRunner
-    import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer
     // Create an in-memory and in-process instance of DynamoDB Local that runs over HTTP
 
     val localArgs = Array("-inMemory")

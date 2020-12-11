@@ -10,7 +10,7 @@ resolvers += Resolver.sonatypeRepo("releases")
 val ZioVersion = "1.0.3"
 
 //libraryDependencies += "software.amazon.awssdk" % "dynamodb" % "2.8.7"
-libraryDependencies += "com.amazonaws" % "DynamoDBLocal" % "1.11.477" % Test
+libraryDependencies += "com.amazonaws" % "DynamoDBLocal" % "1.11.477"
 
 libraryDependencies += "dev.zio" %% "zio" % ZioVersion
 libraryDependencies += "dev.zio" %% "zio-test" % ZioVersion % Test

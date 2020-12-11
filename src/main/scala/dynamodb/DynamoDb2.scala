@@ -15,7 +15,7 @@ object DynamoDb2 {
 
   trait Service {
     def queryUnpaged(request: QueryRequest): IO[AwsError, QueryResponse.ReadOnly]
-    def query(queryRequest: QueryRequest): ZStream[Any, AwsError, Map[AttributeName, AttributeValue]]
+    def query2(queryRequest: QueryRequest, limit: Int): ZStream[Any, AwsError, Map[AttributeName, AttributeValue]]
   }
 
   val live: ZLayer[AwsConfig, Throwable, Has[Service]] = managed2(identity).toLayer
@@ -35,10 +35,10 @@ object DynamoDb2 {
   def queryUnpaged(request: QueryRequest): ZIO[DynamoDb2, AwsError, QueryResponse.ReadOnly] =
     ZIO.accessM(_.get.queryUnpaged(request))
 
-  def query(request: QueryRequest): ZStream[DynamoDb2, AwsError, Map[AttributeName, AttributeValue]] =
+  def query2(request: QueryRequest, limit: Int = 10): ZStream[DynamoDb2, AwsError, Map[AttributeName, AttributeValue]] =
     for {
       x <- ZStream.service[DynamoDb2.Service]
-      response <- x.query(request)
+      response <- x.query2(request, limit)
     } yield response
 }
 
@@ -61,14 +61,18 @@ class DynamoDbImpl2[R](val api: DynamoDbAsyncClient, val aspect: AwsCallAspect[R
     * this ZStream unfoldM to produce a ZIO stream
     *
     * @param queryRequest
+    * @param limit page size
     * @return A ZStream of Map[AttributeName, AttributeValue]]
     */
-  def query(queryRequest: QueryRequest): ZStream[Any, AwsError, Map[AttributeName, AttributeValue]] = {
+  def query2(
+    queryRequest: QueryRequest,
+    limit: Int = 10
+  ): ZStream[Any, AwsError, Map[AttributeName, AttributeValue]] = {
     val emptyLek = Option.empty[Map[AttributeName, AttributeValue]]
     val stream =
       Stream.unfoldM(emptyLek) { lek =>
         val lekNormalised: Option[Map[AttributeName, AttributeValue]] = normaliseLek(lek)
-        val q = queryRequest.copy(limit = Some(PageLimit), exclusiveStartKey = lekNormalised) // we manage the exclusiveStartKey in the request
+        val q = queryRequest.copy(limit = Some(limit), exclusiveStartKey = lekNormalised)
         val effect =
           queryUnpaged(q).map(_.editable)
         effect

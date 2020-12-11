@@ -1,8 +1,8 @@
 package dynamodb
 
 import io.github.vigoo.zioaws.dynamodb.model
-import io.github.vigoo.zioaws.dynamodb.model.primitives.AttributeName
 import io.github.vigoo.zioaws.dynamodb.model._
+import io.github.vigoo.zioaws.dynamodb.model.primitives.AttributeName
 
 object Requests {
   val lekStart = Option.empty[Map[AttributeName, AttributeValue]]
