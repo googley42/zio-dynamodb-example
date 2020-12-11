@@ -47,8 +47,6 @@ class DynamoDbImpl2[R](val api: DynamoDbAsyncClient, val aspect: AwsCallAspect[R
     with AwsServiceBase[R, DynamoDbImpl2] {
   override val serviceName: String = "shockinglyButcheredDynamoDbService"
 
-  val PageLimit = 10 // TODO: this could be part of config or a defaulted param
-
   // returns QueryResponse directly without any streaming/paging - used by query below
   def queryUnpaged(request: QueryRequest): IO[AwsError, QueryResponse.ReadOnly] =
     asyncRequestResponse[
