@@ -37,8 +37,8 @@ object DynamoDb2 {
 
   def query2(request: QueryRequest, limit: Int = 10): ZStream[DynamoDb2, AwsError, Map[AttributeName, AttributeValue]] =
     for {
-      x <- ZStream.service[DynamoDb2.Service]
-      response <- x.query2(request, limit)
+      ddb <- ZStream.service[DynamoDb2.Service]
+      response <- ddb.query2(request, limit)
     } yield response
 }
 
@@ -57,8 +57,8 @@ class DynamoDbImpl2[R](val api: DynamoDbAsyncClient, val aspect: AwsCallAspect[R
     ]("queryUnpaged", api.query)(request.buildAwsValue()).map(QueryResponse.wrap).provide(r)
 
   /**
-    * Uses the server siding paging API of DynamoDb rather than the reactive-streams based DynamoDb api and combines
-    * this ZStream unfoldM to produce a ZIO stream
+    * Uses the server side paging API of DynamoDb rather than the reactive-streams based DynamoDb api and uses
+    * ZStream unfoldM to manage the `lastEvaluatedKey` to produce a ZIO stream
     *
     * @param queryRequest
     * @param limit page size
