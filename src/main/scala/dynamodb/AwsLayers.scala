@@ -30,6 +30,5 @@ object AwsLayers {
   val awsConfigLayer: ZLayer[Any, Throwable, AwsConfig] = httpClientLayer ++ commonAwsConfigLayer >>> config
     .configured()
   val ddbLayer: ZLayer[Any, Nothing, DynamoDb] = (awsConfigLayer >>> dynamodb.live).orDie
-  val ddbLayer2: ZLayer[Any, Nothing, Has[DynamoDb2.Service]] = (awsConfigLayer >>> DynamoDb2.live).orDie
 
 }

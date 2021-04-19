@@ -1,7 +1,9 @@
 # zio-dynamodb
 
-A totally hacked version of `DynamoDb` module from the totally awesome [zio-aws](https://github.com/vigoo/zio-aws) library to 
-demonstrate query streaming based on server side paging
+An example of using the excellent [zio-aws](https://github.com/vigoo/zio-aws) library against an in memory DDB local instance. 
+Demonstrates getting inserting records then querying to get a ZStream.
+
+Code that uses `zio-aws` can be found in `StreamingQuerySpec`
 
 ## Running 
 
