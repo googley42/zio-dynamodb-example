@@ -7,7 +7,7 @@ import zio.{Has, UIO, ZIO, ZLayer, ZManaged}
 
 object LocalDdbServer {
 
-  val inMemoryLayer: ZLayer[Blocking, Throwable, Has[DynamoDBProxyServer]] =
+  val inMemoryLayer: ZLayer[Blocking, Nothing, Has[DynamoDBProxyServer]] =
     (ZManaged.make {
       effectBlocking {
         System.setProperty("sqlite4java.library.path", "native-libs")
@@ -21,6 +21,6 @@ object LocalDdbServer {
         val server: DynamoDBProxyServer = ServerRunner.createServerFromCommandLineArgs(localArgs)
         server.start()
         server
-      }
+      }.orDie
     }(server => effectBlocking(server.stop()).orDie)).toLayer
 }

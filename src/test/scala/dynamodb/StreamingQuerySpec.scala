@@ -34,6 +34,6 @@ object StreamingQuerySpec extends DefaultRunnableSpec {
           _ <- putStrLn(s"${items.toList}")
         } yield assert(rowCount)(equalTo(5)))
         value
-      }.provideCustomLayerShared((ddbLayer ++ LocalDdbServer.inMemoryLayer).orDie)
+      }.provideCustomLayerShared((ddbLayer ++ LocalDdbServer.inMemoryLayer))
     )
 }
