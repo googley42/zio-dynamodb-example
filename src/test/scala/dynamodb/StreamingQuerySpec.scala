@@ -27,7 +27,6 @@ object StreamingQuerySpec extends DefaultRunnableSpec {
     suite(label = "StreamingQuerySpec")(
       testM("should return the results of a streamed query") {
         val value = (for {
-          _ <- ZIO.service[DynamoDBProxyServer]
           items <- program
           rowCount = items.size
           _ <- putStrLn(s"total rows found=${items.size}")
