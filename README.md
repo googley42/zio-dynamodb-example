@@ -9,3 +9,5 @@ an in memory local dynamoDB instance.
 To run:
 
     sbt test    
+
+NoteL this repo was created a while back and may have a misleading name - its just an example AWS SDK interop. If you are looking for a real Scala DynamoDB library then head on over to https://github.com/zio/zio-dynamodb which was created more recently.
